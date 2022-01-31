@@ -21,7 +21,7 @@ defmodule DaneordleWeb.MainLive do
     """
   end
 
-  def mount(_params, stuff, socket) do
+  def mount(_params, _stuff, socket) do
     {:ok, assign(socket, :keyboard, %Daneordle.Keyboard{})}
   end
 end

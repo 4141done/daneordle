@@ -49,7 +49,8 @@ defmodule Daneordle.MixProject do
       {:gettext, "~> 0.18"},
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
-      {:kr_dict, git: "https://github.com/4141done/ex_kr_dict.git"}
+      {:kr_dict, git: "https://github.com/4141done/ex_kr_dict.git"},
+      {:dialyxir, "~> 1.1", only: [:dev], runtime: false}
     ]
   end
 
