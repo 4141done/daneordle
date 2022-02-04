@@ -4,9 +4,12 @@ defmodule Daneordle.Guess do
   defstruct syllables: [],
             position: 0,
             max_position: 0,
-            full?: false,
             # :unsubmitted_full, :submitted_wrong, :submitted_not_word, :submitted_win
             status: :unsubmitted
+
+  defguard is_full?(status) when status in [:unsubmitted_full]
+
+  defguard is_submitted?(status) when status in [:submitted_wrong, :submitted_not_word, :submitted_win]
 
   def build(answer) do
     syllables =
@@ -31,15 +34,17 @@ defmodule Daneordle.Guess do
 
       checked_syllables =
         syllables
-        |> Enum.with_index()
-        |> Enum.reduce(%{}, fn {syllable, idx}, acc ->
+        |> Enum.reduce(%{}, fn {key, syllable}, acc ->
           checked_syllable = Syllable.check(syllable, element_lookup)
-          Map.put(acc, idx, checked_syllable)
+          Map.put(acc, key, checked_syllable)
         end)
+        |> IO.inspect(label: :checked_syllables)
 
       new_status =
         checked_syllables
-        |> Enum.all?(fn syllable -> syllable.correct? end)
+        |> Enum.all?(fn {_key, syllable} ->
+          syllable.correct? |> IO.inspect(label: :syllable_correct?)
+        end)
         |> if do
           :submitted_win
         else
@@ -52,7 +57,7 @@ defmodule Daneordle.Guess do
     end
   end
 
-  def add_element_guess(%__MODULE__{full?: true} = guess, _element) do
+  def add_element_guess(%__MODULE__{status: status} = guess, _element) when is_full?(status) do
     guess
   end
 
@@ -64,9 +69,9 @@ defmodule Daneordle.Guess do
     IO.puts("GETTING syllable at position: #{position}")
 
     case Map.get(syllables, position) do
-      %Syllable{full: false} = syllable ->
+      %Syllable{full?: false} = syllable ->
         IO.inspect(syllable, label: "add #{element} to syllable: #{inspect(syllable)}")
-        %{full: syllable_full?} = new_syllable = Syllable.add_element_guess(syllable, element)
+        %{full?: syllable_full?} = new_syllable = Syllable.add_element_guess(syllable, element)
         IO.puts("syllable full?: #{syllable_full?} and current position: #{position}")
 
         new_position =
@@ -80,11 +85,14 @@ defmodule Daneordle.Guess do
         struct(guess,
           position: new_position,
           syllables: Map.put(syllables, position, new_syllable),
-          full?: syllable_full? and position == max_position
+          status: if syllable_full? and position == max_position do
+            :unsubmitted_full
+          else
+            :unsubmitted
+          end
         )
-        |> IO.inspect(label: :struct_after_add_element)
 
-      %Syllable{full: true} ->
+      %Syllable{full?: true} ->
         new_guess = struct(guess, position: position + 1)
         add_element_guess(new_guess, element)
     end
@@ -100,14 +108,14 @@ defmodule Daneordle.Guess do
       struct(guess,
         syllables: Map.put(syllables, position, new_syllable),
         position: position,
-        full?: false
+        status: :unsubmitted
       )
     end
   end
 
   def in_dictionary?(%__MODULE__{syllables: syllables}) do
     syllables
-    |> Enum.map(&Syllable.to_string/1)
+    |> Enum.map(fn {_key, syllable} -> Syllable.to_string(syllable) end)
     |> Enum.join()
     |> MyDict.find()
     |> is_binary()

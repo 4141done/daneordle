@@ -1,16 +1,15 @@
 defmodule Daneordle.Board do
   alias Daneordle.Guess
 
-  # Zero indexed
-  @max_guesses 4
+  @max_guesses 1
   # status can be :playing, :win, :lose
-  defstruct status: :playing, guesses: %{}, guess_number: 0, answer: nil
+  defstruct status: :playing, guesses: %{}, guess_number: 1, answer: nil
 
   def build(answer) do
     guesses =
       Daneordle.Guess.build(answer)
-      |> List.duplicate(5)
-      |> Enum.with_index()
+      |> List.duplicate(@max_guesses)
+      |> Enum.with_index(1)
       |> Enum.reduce(%{}, fn {guess, idx}, acc ->
         Map.put(acc, idx, guess)
       end)
@@ -41,7 +40,8 @@ defmodule Daneordle.Board do
         %__MODULE__{guesses: guesses, guess_number: guess_number, answer: answer} = board
       ) do
     guesses
-    |> Map.get(guesses, guess_number)
+    |> Map.get(guess_number)
+    |> IO.inspect(label: :guess_ting)
     |> Guess.submit(answer)
     |> case do
       %{status: :submitted_win} = guess ->

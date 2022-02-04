@@ -18,7 +18,7 @@ defmodule Daneordle.Syllable do
             },
             onset: %{guess_value: nil, correct_value: nil, orientation: :vertical, state: nil},
             vowel: %{guess_value: nil, correct_value: nil, orientation: :vertical, state: nil},
-            full: false,
+            full?: false,
             correct?: false,
             next: :onset
 
@@ -53,10 +53,23 @@ defmodule Daneordle.Syllable do
 
   def check(%__MODULE__{} = syllable, lookup) do
     syllable
+    |> IO.inspect(label: :da_syl)
     |> check_onset(lookup)
+        |> IO.inspect(label: :after_onset_set)
     |> check_vowel(lookup)
+    |> IO.inspect(label: :after_vowel_set)
     |> check_coda(lookup)
+    |> IO.inspect(label: :after_coda_set)
     |> set_correctness()
+    |> IO.inspect(label: :after_set_correctness)
+  end
+
+  def to_string(%__MODULE__{
+        onset: %{guess_value: onset},
+        vowel: %{guess_value: vowel},
+        coda: nil}) do
+    %KrDict.Util.Hangul{onset: onset, vowel: vowel, coda: nil}
+    |> KrDict.Util.Hangul.compose()
   end
 
   def to_string(%__MODULE__{
@@ -69,7 +82,7 @@ defmodule Daneordle.Syllable do
   end
 
   # TODO: add guards to make sure we're adding the correct type (vowels in vowel, consonants in coda or onset position)
-  def add_element_guess(%__MODULE__{full: true} = existing, _guess) do
+  def add_element_guess(%__MODULE__{full?: true} = existing, _guess) do
     existing
   end
 
@@ -80,7 +93,7 @@ defmodule Daneordle.Syllable do
 
   def add_element_guess(%__MODULE__{next: :vowel, elements: 2, vowel: vowel} = existing, guess) do
     new_vowel = Map.put(vowel, :guess_value, guess)
-    struct(existing, next: nil, vowel: new_vowel, full: true)
+    struct(existing, next: nil, vowel: new_vowel, full?: true)
   end
 
   def add_element_guess(%__MODULE__{next: :vowel, elements: 3, vowel: vowel} = existing, guess) do
@@ -90,16 +103,16 @@ defmodule Daneordle.Syllable do
 
   def add_element_guess(%__MODULE__{next: :coda, elements: 3, coda: coda} = existing, guess) do
     new_coda = Map.put(coda, :guess_value, guess)
-    struct(existing, next: nil, coda: new_coda, full: true)
+    struct(existing, next: nil, coda: new_coda, full?: true)
   end
 
   def remove_element_guess(%__MODULE__{next: :onset} = existing) do
     existing
   end
 
-  def remove_element_guess(%__MODULE__{full: true, elements: 2, vowel: vowel} = existing) do
+  def remove_element_guess(%__MODULE__{full?: true, elements: 2, vowel: vowel} = existing) do
     new_vowel = Map.put(vowel, :guess_value, nil)
-    struct(existing, next: :vowel, vowel: new_vowel, full: false)
+    struct(existing, next: :vowel, vowel: new_vowel, full?: false)
   end
 
   def remove_element_guess(%__MODULE__{next: :vowel, onset: onset} = existing) do
@@ -107,14 +120,18 @@ defmodule Daneordle.Syllable do
     struct(existing, next: :onset, onset: new_onset)
   end
 
-  def remove_element_guess(%__MODULE__{full: true, elements: 3, coda: coda} = existing) do
+  def remove_element_guess(%__MODULE__{full?: true, elements: 3, coda: coda} = existing) do
     new_coda = Map.put(coda, :guess_value, nil)
-    struct(existing, next: :coda, coda: new_coda, full: false)
+    struct(existing, next: :coda, coda: new_coda, full?: false)
   end
 
   def remove_element_guess(%__MODULE__{next: :coda, elements: 3, vowel: vowel} = existing) do
     new_vowel = Map.put(vowel, :guess_value, nil)
-    struct(existing, next: :vowel, vowel: new_vowel, full: false)
+    struct(existing, next: :vowel, vowel: new_vowel, full?: false)
+  end
+
+  defp check_onset(%__MODULE__{onset: %{guess_value: onset_val, correct_value: onset_val}} = syllable, _lookup) do
+    set_status(syllable, :onset, :correct)
   end
 
   defp check_onset(%__MODULE__{onset: %{guess_value: onset_val}} = syllable, lookup) do
@@ -128,6 +145,10 @@ defmodule Daneordle.Syllable do
     set_status(syllable, :onset, status)
   end
 
+  defp check_vowel(%__MODULE__{vowel: %{guess_value: vowel_val, correct_value: vowel_val}} = syllable, _lookup) do
+    set_status(syllable, :vowel, :correct)
+  end
+
   defp check_vowel(%__MODULE__{vowel: %{guess_value: vowel_val}} = syllable, lookup) do
     status =
       if MapSet.member?(lookup, vowel_val) do
@@ -137,6 +158,14 @@ defmodule Daneordle.Syllable do
       end
 
     set_status(syllable, :vowel, status)
+  end
+
+  defp check_coda(%__MODULE__{coda: nil} = syllable, _lookup) do
+    syllable
+  end
+
+  defp check_coda(%__MODULE__{coda: %{guess_value: coda_val, correct_value: coda_val}} = syllable, _lookup) do
+    set_status(syllable, :coda, :correct)
   end
 
   defp check_coda(%__MODULE__{coda: %{correct_value: nil}} = syllable, _lookup) do
@@ -155,29 +184,31 @@ defmodule Daneordle.Syllable do
   end
 
   defp set_status(%__MODULE__{onset: onset} = syllable, :onset, status) do
-    struct(syllable, onset: struct(onset, status: status))
+    struct(syllable, onset: Map.put(onset, :status, status))
   end
 
   defp set_status(%__MODULE__{vowel: vowel} = syllable, :vowel, status) do
-    struct(syllable, vowel: struct(vowel, status: status))
+    struct(syllable, vowel: Map.put(vowel, :status, status))
   end
 
   defp set_status(%__MODULE__{coda: coda} = syllable, :coda, status) do
-    struct(syllable, coda: struct(coda, status: status))
+    struct(syllable, coda: Map.put(coda, :status, status))
   end
 
   def set_correctness(
         %{
-          onset: %{guess_value: onset, correct_value: onset},
-          vowel: %{guess_value: vowel, correct_value: vowel},
-          coda: %{guess_value: coda, correct_value: coda},
+          onset: %{status: :correct},
+          vowel: %{status: :correct},
+          coda: %{status: :correct},
           full?: true
         } = syllable
       ) do
+    IO.puts "setting correctness true"
     struct(syllable, correct?: true)
   end
 
   def set_correctness(syllable) do
+    IO.puts "setting correctness false"
     struct(syllable, correct?: false)
   end
 end
